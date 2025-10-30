@@ -1,5 +1,6 @@
 from functions.get_files_info import get_files_info
 from functions.get_file_content import get_file_content
+from functions.write_file import write_file
 
 
 def test_get_files_info_dotpath_success():
@@ -47,6 +48,21 @@ def test_get_file_content_file_not_found_failure():
     print(f"Contents of 'pkg/does_not_exist.py' file:\n{response}")
 
 
+def test_write_file_filename_success():
+    response = write_file("calculator", "lorem.txt", "wait, this isn't lorem ipsum")
+    print(response)
+
+
+def test_write_file_relpath_success():
+    response = write_file("calculator", "pkg/morelorem.txt", "lorem ipsum dolor sit amet")
+    print(response)
+
+
+def test_write_file_oob_abspath_failure():
+    response = write_file("calculator", "/tmp/temp.txt", "this should not be allowed")
+    print(response)
+
+
 def main():
     for func in [
         # test_get_files_info_dotpath_success,
@@ -54,10 +70,13 @@ def main():
         # test_get_files_info_oob_abspath_failure,
         # test_get_files_info_oob_relpath_failure,
         # test_get_file_content_size_limit_success,
-        test_get_file_content_filename_success,
-        test_get_file_content_relpath_success,
-        test_get_file_content_oob_abspath_failure,
-        test_get_file_content_file_not_found_failure,
+        # test_get_file_content_filename_success,
+        # test_get_file_content_relpath_success,
+        # test_get_file_content_oob_abspath_failure,
+        # test_get_file_content_file_not_found_failure,
+        test_write_file_filename_success,
+        test_write_file_relpath_success,
+        test_write_file_oob_abspath_failure,
     ]:
         func()
 
