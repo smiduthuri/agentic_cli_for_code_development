@@ -89,26 +89,53 @@ if __name__ == "__main__":
         ]
     )
 
-    messages = [
-        types.Content(role="user", parts=[types.Part(text=args.user_prompt)])
-    ]
+    messages = [types.Content(role="user", parts=[types.Part(text=args.user_prompt)])]
+    for i in range(20):
+        response = client.models.generate_content(
+            model=model,
+            config=types.GenerateContentConfig(
+                tools=[available_functions], system_instruction=system_prompt
+            ),
+            contents=messages,
+        )
 
-    response = client.models.generate_content(
-        model=model,
-        config=types.GenerateContentConfig(
-            tools=[available_functions], system_instruction=system_prompt
-        ),
-        contents=messages,
-    )
+        if not any(
+            [
+                part.function_call is not None
+                for candidate in response.candidates
+                for part in candidate.content.parts
+            ]
+        ):
+            print(response.text)
+            break
 
-    print(f"Response text:\n{response.text}")
-    if response.function_calls:
-        for function_call in response.function_calls:
-            function_call_result = call_function(function_call, verbose=args.verbose)
-            if not function_call_result.parts or not hasattr(function_call_result.parts[0].function_response, "response"):
-                raise RuntimeError(f"Response content from call_function {function_call.name} does not have appropriate format")
-            if args.verbose:
-                print(f"-> {function_call_result.parts[0].function_response.response}")
+        candidate_function_calls_made = False
+
+        for candidate in response.candidates:
+            if not candidate.content:
+                continue
+            messages.append(candidate.content)
+            if not candidate.content.parts:
+                continue
+            for part in candidate.content.parts:
+                if args.verbose and part.text:
+                    print(part.text)
+
+                if part.function_call:
+                    function_call_result = call_function(part.function_call, verbose=args.verbose)
+                    if (
+                        not function_call_result.parts
+                        or not hasattr(function_call_result.parts[0].function_response, "response")
+                    ):
+                        raise RuntimeError(
+                            f"Response content from call_function {part.function_call.name} does not have appropriate format"
+                        )
+                    if args.verbose and function_call_result.parts[0].function_response:
+                        print(f"-> {function_call_result.parts[0].function_response.response}")
+                    messages.append(function_call_result)
+    else:
+        raise RecursionError("Failed to get expected response before max iterations.")
+
 
     if args.verbose:
         print(f"User prompt: {args.user_prompt}")
