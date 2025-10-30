@@ -1,6 +1,7 @@
 from functions.get_files_info import get_files_info
 from functions.get_file_content import get_file_content
 from functions.write_file import write_file
+from functions.run_python_file import run_python_file
 
 
 def test_get_files_info_dotpath_success():
@@ -63,6 +64,36 @@ def test_write_file_oob_abspath_failure():
     print(response)
 
 
+def test_run_python_file_no_args_success():
+    response = run_python_file("calculator", "main.py")
+    print(response)
+
+
+def test_run_python_file_correct_args_success():
+    response = run_python_file("calculator", "main.py", ["3 + 5"])
+    print(response)
+
+
+def test_run_python_file_no_args_test_success():
+    response = run_python_file("calculator", "tests.py")
+    print(response)
+
+
+def test_run_python_file_oob_relpath_failure():
+    response = run_python_file("calculator", "../main.py")
+    print(response)
+
+
+def test_run_python_file_nonexistent_failure():
+    response = run_python_file("calculator", "nonexistent.py")
+    print(response)
+
+
+def test_run_python_file_not_python_file_failure():
+    response = run_python_file("calculator", "lorem.txt")
+    print(response)
+
+
 def main():
     for func in [
         # test_get_files_info_dotpath_success,
@@ -74,9 +105,15 @@ def main():
         # test_get_file_content_relpath_success,
         # test_get_file_content_oob_abspath_failure,
         # test_get_file_content_file_not_found_failure,
-        test_write_file_filename_success,
-        test_write_file_relpath_success,
-        test_write_file_oob_abspath_failure,
+        # test_write_file_filename_success,
+        # test_write_file_relpath_success,
+        # test_write_file_oob_abspath_failure,
+        test_run_python_file_no_args_success,
+        test_run_python_file_correct_args_success,
+        test_run_python_file_no_args_test_success,
+        test_run_python_file_oob_relpath_failure,
+        test_run_python_file_nonexistent_failure,
+        test_run_python_file_not_python_file_failure
     ]:
         func()
 

@@ -10,7 +10,7 @@ def get_file_content(working_directory, file_path):
 
         if not file_abs_path.startswith(working_directory_abs_path):
             return f'Error: Cannot read "{file_path}" as it is outside the permitted working directory'
-        elif not os.path.isfile(file_abs_path):
+        if not os.path.isfile(file_abs_path):
             return f'Error: File not found or is not a regular file: "{file_path}"'
 
         file_size = os.path.getsize(file_abs_path)
