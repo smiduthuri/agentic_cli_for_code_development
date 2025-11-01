@@ -1,7 +1,8 @@
 import argparse
 import os
-import sys
+import logging
 
+from datetime import datetime
 from time import sleep
 
 from dotenv import load_dotenv
@@ -18,6 +19,22 @@ from functions.write_file import write_file, schema_write_file
 load_dotenv()
 API_KEY = os.environ.get("GEMINI_API_KEY")
 
+LOGGER = logging.getLogger(__name__)
+FILE_HANDLER = logging.FileHandler(
+    f"action_log_{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}.log",
+    mode="w",
+    encoding="utf-8",
+)
+FILE_HANDLER.setFormatter(
+    logging.Formatter(
+        "{asctime} - {levelname} - {message}",
+        style="{",
+        datefmt="%Y-%m-%d:%H:%M:%S",
+    )
+)
+LOGGER.addHandler(FILE_HANDLER)
+LOGGER.setLevel(logging.INFO)
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -30,7 +47,8 @@ def parse_args():
 
 
 @retry(reraise=True, stop=stop_after_attempt(2), retry=retry_if_exception_type(errors.ClientError))
-def call_function(function_call_part, verbose=False) -> types.Content:
+def call_function(function_call_part, verbose=False) -> types.Part:
+    LOGGER.info(f" - Calling function: {function_call_part.name}")
     if verbose:
         print(f"Calling function: {function_call_part.name}({function_call_part.args})")
     else:
@@ -44,25 +62,15 @@ def call_function(function_call_part, verbose=False) -> types.Content:
     }
 
     if function_call_part.name not in function_map:
-        return types.Content(
-            role="tool",
-            parts=[
-                types.Part.from_function_response(
-                    name=function_call_part.name,
-                    response={"error": f"Unknown function: {function_call_part.name}"}
-                )
-            ]
+        return types.Part.from_function_response(
+            name=function_call_part.name,
+            response={"error": f"Unknown function: {function_call_part.name}"}
         )
 
     response = function_map[function_call_part.name]("./calculator", **function_call_part.args)
-    return types.Content(
-        role="tool",
-        parts=[
-            types.Part.from_function_response(
-                name=function_call_part.name,
-                response={"result": response}
-            )
-        ]
+    return types.Part.from_function_response(
+        name=function_call_part.name,
+        response={"result": response}
     )
 
 
@@ -105,17 +113,10 @@ if __name__ == "__main__":
             contents=messages,
         )
 
-        if not any(
-            [
-                part.function_call is not None
-                for candidate in response.candidates
-                for part in candidate.content.parts
-            ]
-        ):
-            print(response.text)
+        if not response.function_calls or not response.candidates:
+            LOGGER.info(f"Final Response: {response.text}")
+            print(f"Final Response: {response.text}")
             break
-
-        candidate_function_calls_made = False
 
         for candidate in response.candidates:
             if not candidate.content:
@@ -123,28 +124,36 @@ if __name__ == "__main__":
             messages.append(candidate.content)
             if not candidate.content.parts:
                 continue
+
+            candidate_response_content = types.Content(role="tool", parts=[])
+            assert candidate_response_content.parts is not None
             for part in candidate.content.parts:
-                if args.verbose and part.text:
-                    print(part.text)
+                if part.text:
+                    LOGGER.info(part.text.strip("\n"))
+                    if args.verbose:
+                        print(part.text)
 
                 if part.function_call:
                     function_call_result = call_function(part.function_call, verbose=args.verbose)
-                    if (
-                        not function_call_result.parts
-                        or not hasattr(function_call_result.parts[0].function_response, "response")
+                    if not (
+                        hasattr(function_call_result, "function_response")
+                        and function_call_result.function_response is not None
+                        and hasattr(function_call_result.function_response, "response")
+                        and function_call_result.function_response.response is not None
                     ):
                         raise RuntimeError(
                             f"Response content from call_function {part.function_call.name} does not have appropriate format"
                         )
-                    if args.verbose and function_call_result.parts[0].function_response:
-                        print(f"-> {function_call_result.parts[0].function_response.response}")
-                    messages.append(function_call_result)
-        sleep(1)
+                    if args.verbose:
+                        print(f"-> {function_call_result.function_response.response}")
+                    candidate_response_content.parts.append(function_call_result)
+            messages.append(candidate_response_content)
     else:
         raise RecursionError("Failed to get expected response before max iterations.")
 
 
     if args.verbose:
         print(f"User prompt: {args.user_prompt}")
-        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-        print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+        if response.usage_metadata:
+            print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+            print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
