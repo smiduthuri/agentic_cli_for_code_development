@@ -73,7 +73,7 @@ def call_function(function_call_part, verbose=False) -> types.Part:
 
 
 @retry(reraise=True, stop=stop_after_attempt(2), retry=retry_if_exception_type(errors.ClientError))
-def generate_content_helper(system_prompt, messages):
+def generate_content_helper(client, model, system_prompt, messages):
     return client.models.generate_content(
         model=model,
         config=types.GenerateContentConfig(tools=[available_functions], system_instruction=system_prompt),
@@ -84,7 +84,7 @@ def generate_content_helper(system_prompt, messages):
 if __name__ == "__main__":
     args = parse_args()
     client = genai.Client(api_key=API_KEY)
-    model = "gemini-2.0-flash-001"
+    model = "gemini-2.5-flash"
 
     system_prompt = """
     You are a helpful AI coding agent.
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     messages = [types.Content(role="user", parts=[types.Part(text=args.user_prompt)])]
     for i in range(20):
         print(f"Iteration {i}")
-        response = generate_content_helper(system_prompt, messages)
+        response = generate_content_helper(client, model, system_prompt, messages)
 
         if not response.function_calls or not response.candidates:
             LOGGER.info(f"Final Response: {response.text}")
